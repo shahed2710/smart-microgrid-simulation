@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,13 +12,9 @@ body {
   color: #17243b;
   font-family: Arial, sans-serif;
 }
-header {
-  background: #142c48;
-  color: white;
-  padding: 32px 7%;
-}
+header { background: #142c48; color: white; padding: 32px 7%; }
 header h1 { margin: 0 0 8px; }
-header p { color: #d1e0ef; margin: 0; }
+header p { color: #d1e0ef; margin: 3px 0; }
 main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
 .panel {
   background: white;
@@ -35,11 +30,7 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
 }
 .control label { display: block; font-weight: bold; }
 .control input { width: 100%; margin-top: 14px; accent-color: #147d81; }
-.metric {
-  background: #eef5f8;
-  padding: 18px;
-  border-radius: 10px;
-}
+.metric { background: #eef5f8; padding: 18px; border-radius: 10px; }
 .metric span { display: block; font-size: 13px; color: #51657b; }
 .metric strong { display: block; margin-top: 8px; font-size: 25px; }
 .chart {
@@ -56,42 +47,41 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
 .solar { background: #e8ad39; }
 .wind { background: #35a69a; }
 .load { background: #4674b8; }
+.soc-bar { background: #9561be; }
 .hour small { display: block; padding-top: 7px; font-size: 10px; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
 .note { color: #617188; line-height: 1.6; font-size: 13px; }
+@media (max-width: 600px) { header { padding: 22px 20px; } .panel { padding: 18px; } }
 </style>
 </head>
 <body>
-
 <header>
   <h1>Smart Microgrid Simulation</h1>
   <p>Solar PV | Wind Energy | Battery Storage | Grid Management</p>
   <p>Engineering Portfolio — Shahed Khan Labib</p>
 </header>
-
 <main>
 <section class="panel">
   <h2>System Configuration</h2>
   <div class="controls">
     <div class="control">
-      <label>Solar PV: <span id="pvValue"></span> kW</label>
+      <label for="pv">Solar PV: <span id="pvValue"></span> kW</label>
       <input id="pv" type="range" min="0" max="40" value="15">
     </div>
     <div class="control">
-      <label>Wind Capacity: <span id="windValue"></span> kW</label>
+      <label for="wind">Wind Capacity: <span id="windValue"></span> kW</label>
       <input id="wind" type="range" min="0" max="30" value="8">
     </div>
     <div class="control">
-      <label>Base Demand: <span id="demandValue"></span> kW</label>
+      <label for="demand">Base Demand: <span id="demandValue"></span> kW</label>
       <input id="demand" type="range" min="2" max="25" value="10">
     </div>
     <div class="control">
-      <label>Battery Capacity: <span id="batteryValue"></span> kWh</label>
+      <label for="battery">Battery Capacity: <span id="batteryValue"></span> kWh</label>
       <input id="battery" type="range" min="0" max="100" value="30">
     </div>
   </div>
 </section>
-
 <section class="panel">
   <h2>24-Hour Energy Performance</h2>
   <div class="metrics">
@@ -103,18 +93,18 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
     <div class="metric"><span>Final Battery Charge</span><strong id="soc"></strong></div>
   </div>
 </section>
-
 <section class="panel">
   <h2>Hourly Power Profile</h2>
-  <div class="legend">
-    <span>🟨 Solar PV</span>
-    <span>🟩 Wind</span>
-    <span>🟦 Demand</span>
-  </div>
-  <div class="chart" id="chart"></div>
+  <div class="legend"><span>🟨 Solar PV</span><span>🟩 Wind</span><span>🟦 Demand</span></div>
+  <div class="chart" id="chart" aria-label="Hourly solar, wind and demand bar chart"></div>
   <p class="note">Each bar group represents one hour. Bar heights show average power in kW.</p>
 </section>
-
+<section class="panel">
+  <h2>Battery State of Charge — 24 Hours</h2>
+  <div class="legend"><span>🟪 Battery State of Charge (%)</span></div>
+  <div class="chart" id="socChart" aria-label="Hourly battery state of charge bar chart"></div>
+  <p class="note" id="socNote">Battery charge at the end of each hour. Initial charge is 50% when a battery is installed.</p>
+</section>
 <section class="panel">
   <h2>Simulation Assumptions</h2>
   <p class="note">
@@ -129,16 +119,13 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
   </p>
 </section>
 </main>
-
 <script>
 const $ = id => document.getElementById(id);
-
 function simulate() {
   const pv = +$("pv").value;
   const wind = +$("wind").value;
   const demand = +$("demand").value;
   const battery = +$("battery").value;
-
   $("pvValue").textContent = pv;
   $("windValue").textContent = wind;
   $("demandValue").textContent = demand;
@@ -148,7 +135,6 @@ function simulate() {
   const dischargeEfficiency = 0.95;
   const powerLimit = battery * 0.5;
   let storedEnergy = battery * 0.5;
-
   let generation = 0;
   let consumption = 0;
   let gridImport = 0;
@@ -159,87 +145,62 @@ function simulate() {
     const sunlight = Math.max(0, Math.sin(Math.PI * (h - 6) / 12));
     const solarPower = pv * sunlight;
     const windPower = wind * (0.3 + 0.12 * Math.sin(h * 0.7));
-
-    const demandMultiplier =
-      h >= 18 && h <= 22 ? 1.5 :
-      h >= 7 && h <= 9 ? 1.2 : 0.7;
-
+    const demandMultiplier = h >= 18 && h <= 22 ? 1.5 : h >= 7 && h <= 9 ? 1.2 : 0.7;
     const loadPower = demand * demandMultiplier;
     const renewablePower = solarPower + windPower;
-
-    // Each simulation interval is one hour.
+    // One-hour steps: average power in kW is numerically equal to energy in kWh per step.
     const surplus = renewablePower - loadPower;
-
     if (surplus >= 0) {
-      const chargeInput = Math.min(
-        surplus,
-        powerLimit,
-        (battery - storedEnergy) / chargeEfficiency
-      );
-
+      const chargeInput = Math.min(surplus, powerLimit, (battery - storedEnergy) / chargeEfficiency);
       storedEnergy += chargeInput * chargeEfficiency;
       gridExport += surplus - chargeInput;
     } else {
       const deficit = -surplus;
-      const dischargeOutput = Math.min(
-        deficit,
-        powerLimit,
-        storedEnergy * dischargeEfficiency
-      );
-
+      const dischargeOutput = Math.min(deficit, powerLimit, storedEnergy * dischargeEfficiency);
       storedEnergy -= dischargeOutput / dischargeEfficiency;
       gridImport += deficit - dischargeOutput;
     }
-
+    storedEnergy = Math.max(0, Math.min(battery, storedEnergy));
     generation += renewablePower;
     consumption += loadPower;
-    hourly.push({ h, solarPower, windPower, loadPower });
+    hourly.push({
+      h, solarPower, windPower, loadPower,
+      socPercent: battery > 0 ? 100 * storedEnergy / battery : 0
+    });
   }
 
   const display = (id, value, unit) => {
     $(id).textContent = value.toFixed(1) + " " + unit;
   };
-
   display("generation", generation, "kWh");
   display("consumption", consumption, "kWh");
   display("import", gridImport, "kWh");
   display("export", gridExport, "kWh");
-
-  const selfSupply = consumption > 0
-    ? 100 * (1 - gridImport / consumption) : 0;
-
+  const selfSupply = consumption > 0 ? 100 * (1 - gridImport / consumption) : 0;
   display("selfSupply", selfSupply, "%");
   display("soc", storedEnergy, "kWh");
 
-  const maxPower = Math.max(
-    1,
-    ...hourly.flatMap(x =>
-      [x.solarPower, x.windPower, x.loadPower]
-    )
-  );
-
+  const maxPower = Math.max(1, ...hourly.flatMap(x => [x.solarPower, x.windPower, x.loadPower]));
   $("chart").innerHTML = hourly.map(x => {
     function bar(power, kind) {
       const height = 100 * power / maxPower;
-      return `<div class="bar ${kind}"
-        title="${power.toFixed(1)} kW"
-        style="height:${height}%"></div>`;
+      return `<div class="bar ${kind}" title="${power.toFixed(1)} kW" style="height:${height}%"></div>`;
     }
-
-    return `<div class="hour">
-      <div class="bars">
-        ${bar(x.solarPower, "solar")}
-        ${bar(x.windPower, "wind")}
-        ${bar(x.loadPower, "load")}
-      </div>
-      <small>${x.h}:00</small>
-    </div>`;
+    return `<div class="hour"><div class="bars">
+      ${bar(x.solarPower, "solar")}${bar(x.windPower, "wind")}${bar(x.loadPower, "load")}
+      </div><small>${x.h}:00</small></div>`;
   }).join("");
+
+  $("socChart").innerHTML = hourly.map(x => `
+    <div class="hour"><div class="bars">
+      <div class="bar soc-bar" title="${x.h}:00 — ${x.socPercent.toFixed(1)}%"
+           style="height:${x.socPercent}%"></div>
+    </div><small>${x.h}:00</small></div>`).join("");
+  $("socNote").textContent = battery > 0
+    ? "Battery charge at the end of each hour. The battery begins at 50% state of charge."
+    : "No battery is installed. The 0% bars indicate that battery storage is disabled.";
 }
-
-document.querySelectorAll('input[type="range"]')
-  .forEach(input => input.addEventListener("input", simulate));
-
+document.querySelectorAll('input[type="range"]').forEach(input => input.addEventListener("input", simulate));
 simulate();
 </script>
 </body>
