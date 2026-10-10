@@ -1,0 +1,246 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Microgrid Simulation | Shahed Khan Labib</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #f3f6fa;
+  color: #17243b;
+  font-family: Arial, sans-serif;
+}
+header {
+  background: #142c48;
+  color: white;
+  padding: 32px 7%;
+}
+header h1 { margin: 0 0 8px; }
+header p { color: #d1e0ef; margin: 0; }
+main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
+.panel {
+  background: white;
+  padding: 24px;
+  border-radius: 14px;
+  margin-bottom: 22px;
+  box-shadow: 0 3px 14px #152b4210;
+}
+.controls, .metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 18px;
+}
+.control label { display: block; font-weight: bold; }
+.control input { width: 100%; margin-top: 14px; accent-color: #147d81; }
+.metric {
+  background: #eef5f8;
+  padding: 18px;
+  border-radius: 10px;
+}
+.metric span { display: block; font-size: 13px; color: #51657b; }
+.metric strong { display: block; margin-top: 8px; font-size: 25px; }
+.chart {
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  height: 240px;
+  overflow-x: auto;
+  padding-top: 16px;
+}
+.hour { min-width: 30px; flex: 1; text-align: center; }
+.bars { display: flex; align-items: end; height: 190px; gap: 2px; }
+.bar { flex: 1; border-radius: 3px 3px 0 0; }
+.solar { background: #e8ad39; }
+.wind { background: #35a69a; }
+.load { background: #4674b8; }
+.hour small { display: block; padding-top: 7px; font-size: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+.note { color: #617188; line-height: 1.6; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Smart Microgrid Simulation</h1>
+  <p>Solar PV | Wind Energy | Battery Storage | Grid Management</p>
+  <p>Engineering Portfolio — Shahed Khan Labib</p>
+</header>
+
+<main>
+<section class="panel">
+  <h2>System Configuration</h2>
+  <div class="controls">
+    <div class="control">
+      <label>Solar PV: <span id="pvValue"></span> kW</label>
+      <input id="pv" type="range" min="0" max="40" value="15">
+    </div>
+    <div class="control">
+      <label>Wind Capacity: <span id="windValue"></span> kW</label>
+      <input id="wind" type="range" min="0" max="30" value="8">
+    </div>
+    <div class="control">
+      <label>Base Demand: <span id="demandValue"></span> kW</label>
+      <input id="demand" type="range" min="2" max="25" value="10">
+    </div>
+    <div class="control">
+      <label>Battery Capacity: <span id="batteryValue"></span> kWh</label>
+      <input id="battery" type="range" min="0" max="100" value="30">
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>24-Hour Energy Performance</h2>
+  <div class="metrics">
+    <div class="metric"><span>Renewable Generation</span><strong id="generation"></strong></div>
+    <div class="metric"><span>Total Demand</span><strong id="consumption"></strong></div>
+    <div class="metric"><span>Grid Import</span><strong id="import"></strong></div>
+    <div class="metric"><span>Grid Export</span><strong id="export"></strong></div>
+    <div class="metric"><span>Demand Supplied Without Grid Import</span><strong id="selfSupply"></strong></div>
+    <div class="metric"><span>Final Battery Charge</span><strong id="soc"></strong></div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Hourly Power Profile</h2>
+  <div class="legend">
+    <span>🟨 Solar PV</span>
+    <span>🟩 Wind</span>
+    <span>🟦 Demand</span>
+  </div>
+  <div class="chart" id="chart"></div>
+  <p class="note">Each bar group represents one hour. Bar heights show average power in kW.</p>
+</section>
+
+<section class="panel">
+  <h2>Simulation Assumptions</h2>
+  <p class="note">
+    Educational 24-hour model with one-hour intervals.
+    Solar and wind profiles are illustrative, not measured weather data.
+    Battery starts at 50% state of charge. Charging and discharging
+    efficiencies are each 95%. Battery power is limited to 0.5C.
+    Excess generation is exported and remaining deficits are imported.
+    Grid exchange is assumed unconstrained.
+    Network voltage, frequency and protection are not modelled.
+    This is not a validated grid-design tool.
+  </p>
+</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function simulate() {
+  const pv = +$("pv").value;
+  const wind = +$("wind").value;
+  const demand = +$("demand").value;
+  const battery = +$("battery").value;
+
+  $("pvValue").textContent = pv;
+  $("windValue").textContent = wind;
+  $("demandValue").textContent = demand;
+  $("batteryValue").textContent = battery;
+
+  const chargeEfficiency = 0.95;
+  const dischargeEfficiency = 0.95;
+  const powerLimit = battery * 0.5;
+  let storedEnergy = battery * 0.5;
+
+  let generation = 0;
+  let consumption = 0;
+  let gridImport = 0;
+  let gridExport = 0;
+  const hourly = [];
+
+  for (let h = 0; h < 24; h++) {
+    const sunlight = Math.max(0, Math.sin(Math.PI * (h - 6) / 12));
+    const solarPower = pv * sunlight;
+    const windPower = wind * (0.3 + 0.12 * Math.sin(h * 0.7));
+
+    const demandMultiplier =
+      h >= 18 && h <= 22 ? 1.5 :
+      h >= 7 && h <= 9 ? 1.2 : 0.7;
+
+    const loadPower = demand * demandMultiplier;
+    const renewablePower = solarPower + windPower;
+
+    // Each simulation interval is one hour.
+    const surplus = renewablePower - loadPower;
+
+    if (surplus >= 0) {
+      const chargeInput = Math.min(
+        surplus,
+        powerLimit,
+        (battery - storedEnergy) / chargeEfficiency
+      );
+
+      storedEnergy += chargeInput * chargeEfficiency;
+      gridExport += surplus - chargeInput;
+    } else {
+      const deficit = -surplus;
+      const dischargeOutput = Math.min(
+        deficit,
+        powerLimit,
+        storedEnergy * dischargeEfficiency
+      );
+
+      storedEnergy -= dischargeOutput / dischargeEfficiency;
+      gridImport += deficit - dischargeOutput;
+    }
+
+    generation += renewablePower;
+    consumption += loadPower;
+    hourly.push({ h, solarPower, windPower, loadPower });
+  }
+
+  const display = (id, value, unit) => {
+    $(id).textContent = value.toFixed(1) + " " + unit;
+  };
+
+  display("generation", generation, "kWh");
+  display("consumption", consumption, "kWh");
+  display("import", gridImport, "kWh");
+  display("export", gridExport, "kWh");
+
+  const selfSupply = consumption > 0
+    ? 100 * (1 - gridImport / consumption) : 0;
+
+  display("selfSupply", selfSupply, "%");
+  display("soc", storedEnergy, "kWh");
+
+  const maxPower = Math.max(
+    1,
+    ...hourly.flatMap(x =>
+      [x.solarPower, x.windPower, x.loadPower]
+    )
+  );
+
+  $("chart").innerHTML = hourly.map(x => {
+    function bar(power, kind) {
+      const height = 100 * power / maxPower;
+      return `<div class="bar ${kind}"
+        title="${power.toFixed(1)} kW"
+        style="height:${height}%"></div>`;
+    }
+
+    return `<div class="hour">
+      <div class="bars">
+        ${bar(x.solarPower, "solar")}
+        ${bar(x.windPower, "wind")}
+        ${bar(x.loadPower, "load")}
+      </div>
+      <small>${x.h}:00</small>
+    </div>`;
+  }).join("");
+}
+
+document.querySelectorAll('input[type="range"]')
+  .forEach(input => input.addEventListener("input", simulate));
+
+simulate();
+</script>
+</body>
+</html>
