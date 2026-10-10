@@ -52,6 +52,30 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
 .note { color: #617188; line-height: 1.6; font-size: 13px; }
 @media (max-width: 600px) { header { padding: 22px 20px; } .panel { padding: 18px; } }
+
+/* Version 3: hour-by-hour power-flow schematic */
+.flow-toolbar { display:flex; gap:14px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
+.flow-toolbar label { font-size:15px; font-weight:700; }
+.flow-toolbar input { width:min(100%,520px); flex:1 1 280px; accent-color:#117a83; }
+.flow-hour { color:#106b77; font-variant-numeric:tabular-nums; }
+.flow-status { color:#164a61; background:#eaf5f6; padding:8px 12px; border-radius:20px; font-size:13px; }
+.flow-diagram { margin-top:14px; overflow-x:auto; border-radius:12px; background:linear-gradient(180deg,#f9fcfe,#eff5f8); border:1px solid #dfeaf0; }
+.flow-svg { display:block; width:100%; min-width:700px; height:auto; }
+.flow-node rect { fill:#fff; stroke:#d8e3ed; stroke-width:2; }
+.flow-node .node-title { font-size:19px; font-weight:700; fill:#21374e; }
+.flow-node .node-value { font-size:23px; font-weight:700; fill:#126f79; }
+.flow-node .node-subtitle { font-size:14px; fill:#54677c; }
+.flow-node.bus rect { fill:#163a59; stroke:#163a59; }
+.flow-node.bus text { fill:#fff; }
+.flow-node.bus .node-subtitle { fill:#cee5f3; }
+.flow-link { fill:none; stroke:#b8c5cf; stroke-width:4; stroke-linecap:round; }
+.flow-link.active { stroke:#168d74; stroke-dasharray:9 9; animation:flowMotion 1.1s linear infinite; }
+.flow-edge-label { fill:#384e62; font-size:14px; font-weight:700; paint-order:stroke; stroke:#f2f8fb; stroke-width:5; stroke-linejoin:round; }
+@keyframes flowMotion { to { stroke-dashoffset:-36; } }
+@media (prefers-reduced-motion:reduce) { .flow-link.active { animation:none; } }
+.flow-validation { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:12px; font-size:14px; color:#405b70; }
+.flow-validation strong { color:#076b55; }
+.flow-validation .error { color:#b42318; }
 </style>
 </head>
 <body>
@@ -93,6 +117,77 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
     <div class="metric"><span>Final Battery Charge</span><strong id="soc"></strong></div>
   </div>
 </section>
+
+<section class="panel">
+  <h2>Interactive Energy Flow — Selected Hour</h2>
+  <div class="flow-toolbar">
+    <label for="hourSelector">Inspect hour: <span class="flow-hour" id="selectedHour">12:00–13:00</span></label>
+    <input id="hourSelector" type="range" min="0" max="23" step="1" value="12" aria-label="Choose an hour to inspect energy flows">
+    <span class="flow-status" id="flowStatus" role="status">Loading energy flows…</span>
+  </div>
+  <div class="flow-diagram" role="region" tabindex="0" aria-label="Power flow schematic, scroll horizontally on narrow screens">
+    <svg class="flow-svg" viewBox="0 0 960 485" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flowTitle flowDescription">
+      <title id="flowTitle">Hourly microgrid power-flow diagram</title>
+      <desc id="flowDescription">Solar and wind supply an energy bus. The bus serves electricity demand, can exchange energy with battery storage, and can import or export to the grid. Green arrows show active direction and values are in kilowatts.</desc>
+      <defs>
+        <marker id="flowArrow" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+          <path d="M0 0 L10 5 L0 10Z" fill="#168d74"/>
+        </marker>
+      </defs>
+      <path id="pathSolar" class="flow-link" d="M249 105 L364 190"/>
+      <path id="pathWind" class="flow-link" d="M249 365 L364 255"/>
+      <path id="pathLoad" class="flow-link" d="M591 190 L714 105"/>
+      <path id="pathBattery" class="flow-link" d="M591 230 L714 245"/>
+      <path id="pathGrid" class="flow-link" d="M591 270 L714 395"/>
+      <text id="labelSolar" class="flow-edge-label" x="287" y="123">0.0 kW</text>
+      <text id="labelWind" class="flow-edge-label" x="285" y="326">0.0 kW</text>
+      <text id="labelLoad" class="flow-edge-label" x="616" y="116">0.0 kW</text>
+      <text id="labelBattery" class="flow-edge-label" x="610" y="215">Idle</text>
+      <text id="labelGrid" class="flow-edge-label" x="616" y="359">Idle</text>
+      <g class="flow-node">
+        <rect x="24" y="54" rx="15" width="225" height="106"/>
+        <text class="node-title" x="42" y="87">Solar PV</text>
+        <text class="node-value" id="flowSolar" x="42" y="124">0.0 kW</text>
+        <text class="node-subtitle" x="42" y="145">Renewable source</text>
+      </g>
+      <g class="flow-node">
+        <rect x="24" y="315" rx="15" width="225" height="106"/>
+        <text class="node-title" x="42" y="348">Wind</text>
+        <text class="node-value" id="flowWind" x="42" y="386">0.0 kW</text>
+        <text class="node-subtitle" x="42" y="406">Renewable source</text>
+      </g>
+      <g class="flow-node bus">
+        <rect x="364" y="168" rx="18" width="227" height="111"/>
+        <text class="node-title" x="388" y="203">MICROGRID BUS</text>
+        <text class="node-subtitle" x="388" y="234">Power balanced</text>
+        <text class="node-subtitle" x="388" y="256">One-hour interval</text>
+      </g>
+      <g class="flow-node">
+        <rect x="714" y="54" rx="15" width="225" height="106"/>
+        <text class="node-title" x="732" y="87">Electricity demand</text>
+        <text class="node-value" id="flowLoad" x="732" y="124">0.0 kW</text>
+        <text class="node-subtitle" x="732" y="145">Supplied load</text>
+      </g>
+      <g class="flow-node">
+        <rect x="714" y="193" rx="15" width="225" height="106"/>
+        <text class="node-title" x="732" y="226">Battery storage</text>
+        <text class="node-value" id="flowBattery" x="732" y="264">Idle</text>
+        <text class="node-subtitle" id="flowBatterySoc" x="732" y="285">SOC 50%</text>
+      </g>
+      <g class="flow-node">
+        <rect x="714" y="343" rx="15" width="225" height="106"/>
+        <text class="node-title" x="732" y="376">Utility grid</text>
+        <text class="node-value" id="flowGrid" x="732" y="414">Idle</text>
+        <text class="node-subtitle" x="732" y="434">Grid-connected</text>
+      </g>
+    </svg>
+  </div>
+  <div class="flow-validation">
+    <span>Green moving arrows = positive power flow; grey = no flow.</span>
+    <span id="flowBalance" aria-live="polite"></span>
+  </div>
+  <p class="note">Select any hour to inspect average power in kW. Arrow direction changes for battery charging versus discharging and grid import versus export. The 24-hour summary and both charts still respond to the system sliders.</p>
+</section>
 <section class="panel">
   <h2>Hourly Power Profile</h2>
   <div class="legend"><span>🟨 Solar PV</span><span>🟩 Wind</span><span>🟦 Demand</span></div>
@@ -121,6 +216,7 @@ main { max-width: 1150px; margin: 28px auto; padding: 0 20px; }
 </main>
 <script>
 const $ = id => document.getElementById(id);
+let latestHourly = [];
 function simulate() {
   const pv = +$("pv").value;
   const wind = +$("wind").value;
@@ -150,21 +246,28 @@ function simulate() {
     const renewablePower = solarPower + windPower;
     // One-hour steps: average power in kW is numerically equal to energy in kWh per step.
     const surplus = renewablePower - loadPower;
+    let chargeInput = 0;
+    let dischargeOutput = 0;
+    let hourGridImport = 0;
+    let hourGridExport = 0;
     if (surplus >= 0) {
-      const chargeInput = Math.min(surplus, powerLimit, (battery - storedEnergy) / chargeEfficiency);
+      chargeInput = Math.min(surplus, powerLimit, (battery - storedEnergy) / chargeEfficiency);
       storedEnergy += chargeInput * chargeEfficiency;
-      gridExport += surplus - chargeInput;
+      hourGridExport = surplus - chargeInput;
+      gridExport += hourGridExport;
     } else {
       const deficit = -surplus;
-      const dischargeOutput = Math.min(deficit, powerLimit, storedEnergy * dischargeEfficiency);
+      dischargeOutput = Math.min(deficit, powerLimit, storedEnergy * dischargeEfficiency);
       storedEnergy -= dischargeOutput / dischargeEfficiency;
-      gridImport += deficit - dischargeOutput;
+      hourGridImport = deficit - dischargeOutput;
+      gridImport += hourGridImport;
     }
     storedEnergy = Math.max(0, Math.min(battery, storedEnergy));
     generation += renewablePower;
     consumption += loadPower;
     hourly.push({
       h, solarPower, windPower, loadPower,
+      chargeInput, dischargeOutput, hourGridImport, hourGridExport,
       socPercent: battery > 0 ? 100 * storedEnergy / battery : 0
     });
   }
@@ -199,8 +302,74 @@ function simulate() {
   $("socNote").textContent = battery > 0
     ? "Battery charge at the end of each hour. The battery begins at 50% state of charge."
     : "No battery is installed. The 0% bars indicate that battery storage is disabled.";
+  latestHourly = hourly;
+  updateFlow();
 }
-document.querySelectorAll('input[type="range"]').forEach(input => input.addEventListener("input", simulate));
+function setFlowPath(id, enabled, direction) {
+  const element = $(id);
+  element.setAttribute("class", enabled ? "flow-link active" : "flow-link");
+  if (direction) element.setAttribute("d", direction);
+  if (enabled) element.setAttribute("marker-end", "url(#flowArrow)");
+  else element.removeAttribute("marker-end");
+}
+function updateFlow() {
+  if (!latestHourly.length) return;
+  const h = +$("hourSelector").value;
+  const x = latestHourly[h];
+  const value = n => n.toFixed(1) + " kW";
+  const active = n => n > 0.000001;
+  $("selectedHour").textContent = String(h).padStart(2, "0") + ":00–" + String(h + 1).padStart(2, "0") + ":00";
+  $("flowSolar").textContent = value(x.solarPower);
+  $("flowWind").textContent = value(x.windPower);
+  $("flowLoad").textContent = value(x.loadPower);
+  $("labelSolar").textContent = value(x.solarPower);
+  $("labelWind").textContent = value(x.windPower);
+  $("labelLoad").textContent = value(x.loadPower);
+  setFlowPath("pathSolar", active(x.solarPower));
+  setFlowPath("pathWind", active(x.windPower));
+  setFlowPath("pathLoad", active(x.loadPower));
+
+  if (active(x.chargeInput)) {
+    $("flowBattery").textContent = "Charging";
+    $("labelBattery").textContent = value(x.chargeInput) + " →";
+    setFlowPath("pathBattery", true, "M591 230 L714 245");
+  } else if (active(x.dischargeOutput)) {
+    $("flowBattery").textContent = "Discharging";
+    $("labelBattery").textContent = "← " + value(x.dischargeOutput);
+    setFlowPath("pathBattery", true, "M714 245 L591 230");
+  } else {
+    $("flowBattery").textContent = "Idle";
+    $("labelBattery").textContent = "No flow";
+    setFlowPath("pathBattery", false, "M591 230 L714 245");
+  }
+  const batteryCapacity = +$("battery").value;
+  $("flowBatterySoc").textContent = batteryCapacity > 0
+    ? "SOC " + x.socPercent.toFixed(1) + "%" : "Not installed";
+
+  if (active(x.hourGridImport)) {
+    $("flowGrid").textContent = "Importing";
+    $("labelGrid").textContent = "← " + value(x.hourGridImport);
+    setFlowPath("pathGrid", true, "M714 395 L591 270");
+  } else if (active(x.hourGridExport)) {
+    $("flowGrid").textContent = "Exporting";
+    $("labelGrid").textContent = value(x.hourGridExport) + " →";
+    setFlowPath("pathGrid", true, "M591 270 L714 395");
+  } else {
+    $("flowGrid").textContent = "No exchange";
+    $("labelGrid").textContent = "No flow";
+    setFlowPath("pathGrid", false, "M591 270 L714 395");
+  }
+  $("flowStatus").textContent = active(x.hourGridImport) ? "Importing from grid" :
+    active(x.hourGridExport) ? "Exporting to grid" : "No grid exchange";
+  const supplied = x.solarPower + x.windPower + x.dischargeOutput + x.hourGridImport;
+  const used = x.loadPower + x.chargeInput + x.hourGridExport;
+  const difference = Math.abs(supplied - used);
+  $("flowBalance").textContent = difference < 1e-7
+    ? "✓ Bus power balance verified" : "⚠ Power imbalance: " + difference.toFixed(4) + " kW";
+  $("flowBalance").className = difference < 1e-7 ? "" : "error";
+}
+document.querySelectorAll('.control input[type="range"]').forEach(input => input.addEventListener("input", simulate));
+$("hourSelector").addEventListener("input", updateFlow);
 simulate();
 </script>
 </body>
